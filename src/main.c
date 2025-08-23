@@ -7,8 +7,28 @@
 typedef struct {
     char* filename;
     double duration;
+    long filesize;
 } VideoInfo;
     
+void size_into_readable(const VideoInfo *info, char *buf, size_t buf_size) {
+    if (!info || info->filesize < 0) {
+        snprintf(buf, buf_size, "unknown");
+        return;
+    }
+
+    double size = (double)info->filesize;
+
+    if (size < (1024.0 * 1024.0 * 1024.0)) {
+        // show as mb
+        double size_mb = size / (1024.0 * 1024.0);
+        snprintf(buf, buf_size, "%.2f MB", size_mb);
+    } else {
+        // show as gb
+        double size_gb = size / (1024.0 * 1024.0 * 1024.0);
+        snprintf(buf, buf_size, "%.2f GB", size_gb);
+    }
+}
+
 VideoInfo *get_video_info(const char* video_path) {
     AVFormatContext *input_ctx = NULL;
     int ret = avformat_open_input(&input_ctx, video_path, NULL, NULL);
@@ -22,12 +42,25 @@ VideoInfo *get_video_info(const char* video_path) {
         fprintf(stderr, "Error obtaining stream info %s\n", video_path);
         return NULL;
     }
+    
     VideoInfo *video_info = malloc(sizeof(VideoInfo));
+
     video_info->filename = g_strdup(video_path);
     if (input_ctx->duration != AV_NOPTS_VALUE) {
         video_info->duration = (double)input_ctx->duration / AV_TIME_BASE;
     } else {
         video_info->duration = -1.0;
+    }
+
+    FILE *fp = fopen(video_path, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "Error obtaining file size");
+        video_info->filesize = -1;
+    } else {
+        fseek(fp, 0, SEEK_END);
+        long file_size = ftell(fp);
+        fclose(fp);
+        video_info->filesize = file_size;
     }
     return video_info;
     
@@ -58,6 +91,10 @@ on_video_selected(GObject *source_object, GAsyncResult *res, gpointer user_data)
         VideoInfo *video_info = get_video_info(path);
         printf("video_info->filename: %s\n", video_info->filename);
         printf("video_info->duration: %.2f\n", video_info->duration);
+        printf("video_info->file_size: %ld\n", video_info->filesize);
+        char size_str[32];
+        size_into_readable(video_info, size_str, sizeof(size_str));
+        printf("File size: %s\n", size_str);
 
         if (video_info) {
             GtkWidget *win = gtk_window_new();
@@ -83,6 +120,10 @@ on_video_selected(GObject *source_object, GAsyncResult *res, gpointer user_data)
             }
             GtkWidget *label_dur = gtk_label_new(buf);
             gtk_box_append(GTK_BOX(box), label_dur);
+
+            snprintf(buf, sizeof(buf), "File size: %s", size_str);
+            GtkWidget *label_size = gtk_label_new(buf);
+            gtk_box_append(GTK_BOX(box), label_size);
 
             GtkWidget *max_split_time = gtk_entry_new();
             gtk_entry_set_placeholder_text(GTK_ENTRY(max_split_time), "Enter time");
