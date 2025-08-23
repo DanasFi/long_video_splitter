@@ -3,6 +3,10 @@
 #include <libavformat/avformat.h>
 #include <stdio.h>
 #include "libavutil/avutil.h"
+#include "video_splitter.h"
+
+const int MAX_SIZE_IN_SECS = 4 * 60 * 60; // 4 hours
+#define SPLIT_VIDEO_DURAITON (4.0 * 3600.0)  // 4 hours in seconds
 
 typedef struct {
     char* filename;
@@ -42,6 +46,7 @@ VideoInfo *get_video_info(const char* video_path) {
         fprintf(stderr, "Error obtaining stream info %s\n", video_path);
         return NULL;
     }
+    av_dump_format(input_ctx,0 , video_path, 0);
     
     VideoInfo *video_info = malloc(sizeof(VideoInfo));
 
@@ -64,6 +69,34 @@ VideoInfo *get_video_info(const char* video_path) {
     }
     return video_info;
     
+}
+
+GtkWidget *make_split_row(const char *video_name, const char *part, double val) {
+    GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);  
+
+    GtkWidget *video_name_label = gtk_label_new(video_name);
+    gtk_box_append(GTK_BOX(row), video_name_label);
+
+    GtkWidget *part_label = gtk_label_new(part);
+    gtk_box_append(GTK_BOX(row), part_label);
+
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", val);
+    GtkWidget *label_val = gtk_label_new(buf);
+    gtk_box_append(GTK_BOX(row), label_val);
+
+    GtkWidget *check = gtk_check_button_new();
+    gtk_box_append(GTK_BOX(row), check);
+
+    return row;
+}
+
+static void on_split_video_selected(GtkButton *button, gpointer user_data) {
+    const char *file_path = (const char *)user_data; 
+    printf("Splitting video: %s\n", file_path);
+
+    // Call your actual split_video function
+    split_video(file_path, SPLIT_VIDEO_DURAITON);    
 }
 
 static void
@@ -129,8 +162,14 @@ on_video_selected(GObject *source_object, GAsyncResult *res, gpointer user_data)
             gtk_entry_set_placeholder_text(GTK_ENTRY(max_split_time), "Enter time");
             gtk_box_append(GTK_BOX(box), max_split_time);
 
+            // make split predictions
+            int number_of_splits = video_info->duration / MAX_SIZE_IN_SECS;
             GtkWidget *btn = gtk_button_new_with_label("Split!");
             gtk_box_append(GTK_BOX(box), btn);
+
+            g_signal_connect(btn, "clicked", G_CALLBACK(on_split_video_selected), (gpointer)video_info->filename);
+            gtk_box_append(GTK_BOX(box), btn);
+            
 
             gtk_window_present(GTK_WINDOW(win));
         }
