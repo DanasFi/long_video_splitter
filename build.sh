@@ -1,2 +1,2 @@
 #!/bin/bash
-gcc `pkg-config --cflags gtk4` -o a.out src/main.c `pkg-config --libs gtk4`
+gcc -g -o a.out src/main.c `pkg-config --cflags --libs gtk4 libavformat libavcodec libavutil`
