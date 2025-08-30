@@ -1,4 +1,4 @@
-#include <video_splitter.h>
+#include "video_splitter.h"
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
