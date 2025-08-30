@@ -7,6 +7,11 @@
 
 const int MAX_SIZE_IN_SECS = 4 * 60 * 60; // 4 hours
 #define SPLIT_VIDEO_DURATION (4.0 * 3600.0)  // 4 hours in seconds
+#define MAX_HOURS_VIDEO "06"
+#define MAX_MINUTES_VIDEO "00"
+#define MIN_HOURS_VIDEO "00"
+#define MIN_MINUTES_VIDEO "30"
+#define DEFAULT_SECONDS "00"
 
 typedef struct {
     char* filename;
@@ -21,14 +26,20 @@ typedef struct {
     GtkWidget *seconds;
 } TimeInputData;
 
-TimeInputData* create_time_input(GtkWidget *parent_box, const char *filename) {
+typedef struct {
+    TimeInputData *max_duration;
+    TimeInputData *min_duration;
+    char* filename;
+} SplitVideoInput; 
+
+TimeInputData* create_time_input(GtkWidget *parent_box, const char *filename, const char* default_hours, const char* default_minutes, const char* default_seconds) {
     GtkWidget *time_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
 
     // inputs
     GtkWidget *hours_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *hours_label = gtk_label_new("HH");
     GtkWidget *hours_entry = gtk_entry_new();
-    gtk_editable_set_text(GTK_EDITABLE(hours_entry), "06");  // Default to 6 hours
+    gtk_editable_set_text(GTK_EDITABLE(hours_entry), default_hours);  
     gtk_entry_set_max_length(GTK_ENTRY(hours_entry), 2);
     gtk_widget_set_size_request(hours_entry, 50, -1);
     gtk_box_append(GTK_BOX(hours_column), hours_label);
@@ -47,7 +58,7 @@ TimeInputData* create_time_input(GtkWidget *parent_box, const char *filename) {
     GtkWidget *minutes_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *minutes_label = gtk_label_new("MM");
     GtkWidget *minutes_entry = gtk_entry_new();
-    gtk_editable_set_text(GTK_EDITABLE(minutes_entry), "00");  
+    gtk_editable_set_text(GTK_EDITABLE(minutes_entry), default_minutes);  
     gtk_entry_set_max_length(GTK_ENTRY(minutes_entry), 2);
     gtk_widget_set_size_request(minutes_entry, 50, -1);
     gtk_box_append(GTK_BOX(minutes_column), minutes_label);
@@ -66,7 +77,7 @@ TimeInputData* create_time_input(GtkWidget *parent_box, const char *filename) {
     GtkWidget *seconds_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     GtkWidget *seconds_label = gtk_label_new("SS");
     GtkWidget *seconds_entry = gtk_entry_new();
-    gtk_editable_set_text(GTK_EDITABLE(seconds_entry), "00");  // Default to 0 seconds
+    gtk_editable_set_text(GTK_EDITABLE(seconds_entry), default_seconds);  // Default to 0 seconds
     gtk_entry_set_max_length(GTK_ENTRY(seconds_entry), 2);
     gtk_widget_set_size_request(seconds_entry, 50, -1);
     gtk_box_append(GTK_BOX(seconds_column), seconds_label);
@@ -160,12 +171,26 @@ GtkWidget *make_split_row(const char *video_name, const char *part, double val) 
 
     return row;
 }
+int get_total_seconds_from_time_input(TimeInputData *time_data) {
+    const char *hours_text = gtk_editable_get_text(GTK_EDITABLE(time_data->hours));
+    const char *minutes_text = gtk_editable_get_text(GTK_EDITABLE(time_data->minutes));
+    const char *seconds_text = gtk_editable_get_text(GTK_EDITABLE(time_data->seconds));
+    
+    int hours = (strlen(hours_text) > 0) ? atoi(hours_text) : 0;
+    int minutes = (strlen(minutes_text) > 0) ? atoi(minutes_text) : 0;
+    int seconds = (strlen(seconds_text) > 0) ? atoi(seconds_text) : 0;
+    
+    return hours * 3600 + minutes * 60 + seconds;
+}
 
 static void on_split_video_selected(GtkButton *button, gpointer user_data) {
-    const char *file_path = (const char *)user_data; 
-    printf("Splitting video: %s\n", file_path);
+    const SplitVideoInput *split_video_input= (const SplitVideoInput *)user_data; 
+    printf("Splitting video: %s\n", split_video_input->filename);
 
-    split_video(file_path, SPLIT_VIDEO_DURATION);    
+    double max_duration = get_total_seconds_from_time_input(split_video_input->max_duration);
+    double min_duration = get_total_seconds_from_time_input(split_video_input->min_duration);
+    
+    split_video(split_video_input->filename, max_duration, min_duration);    
 }
 
 static void
@@ -230,19 +255,37 @@ on_video_selected(GObject *source_object, GAsyncResult *res, gpointer user_data)
             snprintf(buf, sizeof(buf), "Max tiempo por video");
             GtkWidget *max_size_video_label= gtk_label_new(buf);
             gtk_box_append(GTK_BOX(box), max_size_video_label);
-            TimeInputData *max_time_data = create_time_input(box, video_info->filename);
+            TimeInputData *max_time_data =
+                create_time_input(
+                                box,
+                                video_info->filename,
+                                MAX_HOURS_VIDEO,
+                                MAX_MINUTES_VIDEO,
+                                DEFAULT_SECONDS
+                            );
             
-            snprintf(buf, sizeof(buf), "Max tiempo por video");
+            snprintf(buf, sizeof(buf), "Min tiempo por video");
             GtkWidget *min_size_video_label= gtk_label_new(buf);
             gtk_box_append(GTK_BOX(box), min_size_video_label);
-            TimeInputData *min_time_data = create_time_input(box, video_info->filename);
+            TimeInputData *min_time_data =
+                create_time_input(
+                                  box,
+                                  video_info->filename,
+                                  MIN_HOURS_VIDEO,
+                                  MIN_MINUTES_VIDEO,
+                                  DEFAULT_SECONDS
+                              );
 
             // make split predictions
             int number_of_splits = video_info->duration / MAX_SIZE_IN_SECS;
             GtkWidget *btn = gtk_button_new_with_label("Split!");
             gtk_box_append(GTK_BOX(box), btn);
 
-            g_signal_connect(btn, "clicked", G_CALLBACK(on_split_video_selected), (gpointer)video_info->filename);
+            SplitVideoInput *split_video_input = g_malloc(sizeof(SplitVideoInput));
+            split_video_input->filename = g_strdup(video_info->filename);
+            split_video_input->max_duration = max_time_data;
+            split_video_input->min_duration = min_time_data;
+            g_signal_connect(btn, "clicked", G_CALLBACK(on_split_video_selected), (gpointer)split_video_input);
             gtk_box_append(GTK_BOX(box), btn);
             
 

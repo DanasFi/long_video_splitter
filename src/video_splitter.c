@@ -167,7 +167,7 @@ void generate_output_filename(const char* input_filename, int part_number,
     }
 }
 
-int split_video(const char* input_filename, double chunk_duration) {
+int split_video(const char* input_filename, double chunk_max_duration, double chunk_min_duration) {
     double total_duration = get_video_duration(input_filename);
     if (total_duration <= 0) {
         fprintf(stderr, "Could not get video duration\n");
@@ -178,8 +178,8 @@ int split_video(const char* input_filename, double chunk_duration) {
            total_duration, total_duration / 3600.0);
     
     // Calculate number of full chunks and remaining time
-    int full_chunks = (int)(total_duration / chunk_duration);
-    double remaining_time = total_duration - (full_chunks * chunk_duration);
+    int full_chunks = (int)(total_duration / chunk_max_duration);
+    double remaining_time = total_duration - (full_chunks * chunk_max_duration);
     
     printf("Will create %d full chunks of 4 hours each\n", full_chunks);
     printf("Remaining time: %.2f seconds (%.2f minutes)\n", 
@@ -188,10 +188,10 @@ int split_video(const char* input_filename, double chunk_duration) {
     int total_parts;
     double last_chunk_duration;
     int merge_last_chunk = 0;  
-    if (remaining_time > 0 && remaining_time < MIN_LAST_CHUNK && full_chunks > 0) {
+    if (remaining_time > 0 && remaining_time < chunk_min_duration && full_chunks > 0) {
         // Merge with previous chunk
         total_parts = full_chunks;
-        last_chunk_duration = chunk_duration + remaining_time;
+        last_chunk_duration = chunk_max_duration + remaining_time;
         merge_last_chunk = 1;  
         printf("Last segment is too short (%.2f min), merging with previous chunk\n", 
                remaining_time / 60.0);
@@ -210,7 +210,7 @@ int split_video(const char* input_filename, double chunk_duration) {
         char output_filename[512];
         generate_output_filename(input_filename, i + 1, output_filename, sizeof(output_filename));
     
-        double start_time = i * chunk_duration;
+        double start_time = i * chunk_max_duration;
         double duration;
     
         if (i == total_parts - 1 && merge_last_chunk) {
@@ -219,7 +219,7 @@ int split_video(const char* input_filename, double chunk_duration) {
             duration = last_chunk_duration;  // remaining_time
         } else {
             // Regular chunk
-            duration = chunk_duration;
+            duration = chunk_max_duration;
         }        
         printf("\nCreating part %d: %s\n", i + 1, output_filename);
         printf("Start time: %.2f seconds (%.2f hours)\n", start_time, start_time / 3600.0);
