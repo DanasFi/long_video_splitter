@@ -6,7 +6,7 @@
 #include "video_splitter.h"
 
 const int MAX_SIZE_IN_SECS = 4 * 60 * 60; // 4 hours
-#define SPLIT_VIDEO_DURAITON (4.0 * 3600.0)  // 4 hours in seconds
+#define SPLIT_VIDEO_DURATION (4.0 * 3600.0)  // 4 hours in seconds
 
 typedef struct {
     char* filename;
@@ -14,6 +14,76 @@ typedef struct {
     long filesize;
 } VideoInfo;
     
+
+typedef struct {
+    GtkWidget *hours;
+    GtkWidget *minutes;
+    GtkWidget *seconds;
+} TimeInputData;
+
+TimeInputData* create_time_input(GtkWidget *parent_box, const char *filename) {
+    GtkWidget *time_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+
+    // inputs
+    GtkWidget *hours_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *hours_label = gtk_label_new("HH");
+    GtkWidget *hours_entry = gtk_entry_new();
+    gtk_editable_set_text(GTK_EDITABLE(hours_entry), "06");  // Default to 6 hours
+    gtk_entry_set_max_length(GTK_ENTRY(hours_entry), 2);
+    gtk_widget_set_size_request(hours_entry, 50, -1);
+    gtk_box_append(GTK_BOX(hours_column), hours_label);
+    gtk_box_append(GTK_BOX(hours_column), hours_entry);
+    gtk_box_append(GTK_BOX(time_box), hours_column);
+
+    // separator
+    GtkWidget *separator_column1 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *spacer1 = gtk_label_new("");  
+    GtkWidget *colon1 = gtk_label_new(":");
+    gtk_box_append(GTK_BOX(separator_column1), spacer1);
+    gtk_box_append(GTK_BOX(separator_column1), colon1);
+    gtk_box_append(GTK_BOX(time_box), separator_column1);
+
+    // minutes
+    GtkWidget *minutes_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *minutes_label = gtk_label_new("MM");
+    GtkWidget *minutes_entry = gtk_entry_new();
+    gtk_editable_set_text(GTK_EDITABLE(minutes_entry), "00");  
+    gtk_entry_set_max_length(GTK_ENTRY(minutes_entry), 2);
+    gtk_widget_set_size_request(minutes_entry, 50, -1);
+    gtk_box_append(GTK_BOX(minutes_column), minutes_label);
+    gtk_box_append(GTK_BOX(minutes_column), minutes_entry);
+    gtk_box_append(GTK_BOX(time_box), minutes_column);
+
+    // separator
+    GtkWidget *separator_column2 = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *spacer2 = gtk_label_new("");  
+    GtkWidget *colon2 = gtk_label_new(":");
+    gtk_box_append(GTK_BOX(separator_column2), spacer2);
+    gtk_box_append(GTK_BOX(separator_column2), colon2);
+    gtk_box_append(GTK_BOX(time_box), separator_column2);
+
+    // seconds
+    GtkWidget *seconds_column = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    GtkWidget *seconds_label = gtk_label_new("SS");
+    GtkWidget *seconds_entry = gtk_entry_new();
+    gtk_editable_set_text(GTK_EDITABLE(seconds_entry), "00");  // Default to 0 seconds
+    gtk_entry_set_max_length(GTK_ENTRY(seconds_entry), 2);
+    gtk_widget_set_size_request(seconds_entry, 50, -1);
+    gtk_box_append(GTK_BOX(seconds_column), seconds_label);
+    gtk_box_append(GTK_BOX(seconds_column), seconds_entry);
+    gtk_box_append(GTK_BOX(time_box), seconds_column);
+
+    // add to main box
+    gtk_box_append(GTK_BOX(parent_box), time_box);
+
+    TimeInputData *time_data = g_malloc(sizeof(TimeInputData));
+    time_data->hours = hours_entry;
+    time_data->minutes = minutes_entry;
+    time_data->seconds = seconds_entry;
+
+    return time_data;
+}
+
 void size_into_readable(const VideoInfo *info, char *buf, size_t buf_size) {
     if (!info || info->filesize < 0) {
         snprintf(buf, buf_size, "unknown");
@@ -95,8 +165,7 @@ static void on_split_video_selected(GtkButton *button, gpointer user_data) {
     const char *file_path = (const char *)user_data; 
     printf("Splitting video: %s\n", file_path);
 
-    // Call your actual split_video function
-    split_video(file_path, SPLIT_VIDEO_DURAITON);    
+    split_video(file_path, SPLIT_VIDEO_DURATION);    
 }
 
 static void
@@ -158,9 +227,15 @@ on_video_selected(GObject *source_object, GAsyncResult *res, gpointer user_data)
             GtkWidget *label_size = gtk_label_new(buf);
             gtk_box_append(GTK_BOX(box), label_size);
 
-            GtkWidget *max_split_time = gtk_entry_new();
-            gtk_entry_set_placeholder_text(GTK_ENTRY(max_split_time), "Enter time");
-            gtk_box_append(GTK_BOX(box), max_split_time);
+            snprintf(buf, sizeof(buf), "Max tiempo por video");
+            GtkWidget *max_size_video_label= gtk_label_new(buf);
+            gtk_box_append(GTK_BOX(box), max_size_video_label);
+            TimeInputData *max_time_data = create_time_input(box, video_info->filename);
+            
+            snprintf(buf, sizeof(buf), "Max tiempo por video");
+            GtkWidget *min_size_video_label= gtk_label_new(buf);
+            gtk_box_append(GTK_BOX(box), min_size_video_label);
+            TimeInputData *min_time_data = create_time_input(box, video_info->filename);
 
             // make split predictions
             int number_of_splits = video_info->duration / MAX_SIZE_IN_SECS;
@@ -210,7 +285,7 @@ static void on_pick_video_clicked(GtkButton *button, gpointer user_data) {
     
     gtk_file_dialog_open(dialog, parent_window, NULL, on_video_selected, NULL);
     
-    // Cleanup
+    // cleanup
     g_object_unref(video_filter);
     g_object_unref(all_filter);
     g_object_unref(filters);
@@ -229,7 +304,6 @@ static void on_activate (GtkApplication *app) {
 }
 
 int main (int argc, char *argv[]) {
-  // Create a new application
   GtkApplication *app = gtk_application_new ("com.example.GtkApplication",
                                              G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect (app, "activate", G_CALLBACK (on_activate), NULL);
