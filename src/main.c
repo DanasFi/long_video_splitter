@@ -193,6 +193,8 @@ static void on_split_video_selected(GtkButton *button, gpointer user_data) {
 
     double max_duration = get_total_seconds_from_time_input(split_video_input->max_duration);
     double min_duration = get_total_seconds_from_time_input(split_video_input->min_duration);
+    printf("max duration %d", max_duration);
+    printf("min duration %d", min_duration);
     
     split_video(split_video_input->filename, max_duration, min_duration);    
 }
